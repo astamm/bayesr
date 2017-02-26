@@ -1,0 +1,14 @@
+Package: bayesr
+Type: Package
+Title: An implementation of Bayes Space for Gaussians in R
+Version: 0.0.0.9000
+Author: as.person(c(
+    "Aymeric Stamm <aymeric@stamm.fr> [aut, cre]"
+    ))
+Maintainer: Aymeric Stamm <aymeric@stamm.fr>
+Description: More about what it does (maybe more than one line)
+    Use four spaces when indenting paragraphs within the Description.
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 6.0.1
