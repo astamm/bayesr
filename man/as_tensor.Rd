@@ -4,10 +4,13 @@
 \alias{as_tensor}
 \title{Vector-To-Tensor Representation}
 \usage{
-as_tensor(vector)
+as_tensor(vector, twice = FALSE)
 }
 \arguments{
 \item{vector}{A vector of size 6 storing the 6 unique components of a tensor.}
+
+\item{twice}{A boolean that says whether off-diagonal tensor elements were
+doubled in vector representation (default: \code{FALSE}).}
 }
 \value{
 A 3x3 symmetric postive definite matrix as output tensor.
