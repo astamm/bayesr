@@ -72,9 +72,17 @@ single_run <- function(tensor, rho, n, B) {
                                           tensor),
       Bayes_LogEuclidean = purrr::map_dbl(Bayes_Estimate, log_euclidean_distance,
                                           tensor),
-      Bayes_Bayes = purrr::map_dbl(Bayes_Estimate, bayes_distance, tensor)
+      Bayes_Bayes = purrr::map_dbl(Bayes_Estimate, bayes_distance, tensor),
+      LogEuclidean_Microstructure = purrr::map(LogEuclidean_Estimate,
+                                               microstructure_distance, tensor),
+      LogEuclidean_Radius = purrr::map_dbl(LogEuclidean_Microstructure, "radius"),
+      LogEuclidean_Direction = purrr::map_dbl(LogEuclidean_Microstructure, "direction"),
+      Bayes_Microstructure = purrr::map(Bayes_Estimate,
+                                               microstructure_distance, tensor),
+      Bayes_Radius = purrr::map_dbl(Bayes_Microstructure, "radius"),
+      Bayes_Direction = purrr::map_dbl(Bayes_Microstructure, "direction")
     ) %>%
-    dplyr::select(5:8) %>%
+    dplyr::select(5:8, 10:11, 13:14) %>%
     dplyr::summarise_all(mean) %>%
     tidyr::gather(Tmp, MSE) %>%
     tidyr::separate(Tmp, c("Space", "Metric"))

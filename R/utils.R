@@ -104,3 +104,28 @@ estimate_tensor <- function(signals) {
   tensor <- as_tensor(tensor)
   as.matrix(Matrix::nearPD(tensor)$mat)
 }
+
+#' Distances on brain microstructure
+#'
+#' @param tensor1 A symmetric definite positive 3x3 matrix.
+#' @param tensor2 A symmetric definite positive 3x3 matrix.
+#'
+#' @return A list of distances for microstructure parameters.
+#' @export
+#'
+#' @examples
+#' D1 <- diag(c(1.7, 0.3, 0.1)) * 1e-3
+#' D2 <- diag(c(0.3, 1.7, 0.1)) * 1e-3
+#' microstructure_distance(D1, D2)
+microstructure_distance <- function(tensor1, tensor2) {
+  eig1 <- eigen(tensor1, symmetric = TRUE)
+  eig2 <- eigen(tensor2, symmetric = TRUE)
+  r1 <- mean(eig1$values[2:3])
+  r2 <- mean(eig2$values[2:3])
+  dir1 <- eig1$vectors[, 1]
+  dir2 <- eig2$vectors[, 1]
+  list(
+    radius = (log(r1) - log(r2))^2,
+    direction = acos(abs(sum(dir1 * dir2)))^2
+  )
+}
