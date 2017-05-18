@@ -25,7 +25,7 @@ arrow <- ggplot2::arrow(length = ggplot2::unit(0.4, "cm"), type = "closed")
 refIsotropicTensor <- diag(3e-3, 3L)
 data_isotropic <- robustness_analysis(refIsotropicTensor, B = 100L)
 
-data_isotropic \%>\%
+data_isotropic$data \%>\%
  ggplot2::ggplot(ggplot2::aes(x = Sigma, y = MSE, col = Space)) +
  ggplot2::geom_point() +
  ggplot2::geom_line() +
@@ -46,10 +46,10 @@ for (a in theta) {
    c(0, 0, 1)
  )
  ref_tmp <- R \%*\% refAnisotropicTensor \%*\% t(R)
- data_tmp <- robustness_analysis(ref_tmp, B = 100L)
+ tmp <- robustness_analysis(ref_tmp, B = 100L)
  data_fascicles <- dplyr::bind_rows(
    data_fascicles,
-   data_tmp \%>\% dplyr::mutate(Angle = round(a, 4L))
+   tmp$data \%>\% dplyr::mutate(Angle = round(a, 4L))
  )
 }
 

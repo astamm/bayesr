@@ -13,7 +13,7 @@
 #' refIsotropicTensor <- diag(3e-3, 3L)
 #' data_isotropic <- robustness_analysis(refIsotropicTensor, B = 100L)
 #'
-#' data_isotropic %>%
+#' data_isotropic$data %>%
 #'  ggplot2::ggplot(ggplot2::aes(x = Sigma, y = MSE, col = Space)) +
 #'  ggplot2::geom_point() +
 #'  ggplot2::geom_line() +
@@ -34,12 +34,12 @@
 #'    c(0, 0, 1)
 #'  )
 #'  ref_tmp <- R %*% refAnisotropicTensor %*% t(R)
-#'  data_tmp <- robustness_analysis(ref_tmp, B = 100L)
+#'  tmp <- robustness_analysis(ref_tmp, B = 100L)
 #'  data_fascicles <- dplyr::bind_rows(
 #'    data_fascicles,
-#'    data_tmp %>% dplyr::mutate(Angle = round(a, 4L))
+#'    tmp$data %>% dplyr::mutate(Angle = round(a, 4L))
 #'  )
-#' }
+#'}
 #'
 #' data_fascicles %>%
 #'   ggplot2::ggplot(ggplot2::aes(x = Sigma, y = MSE, col = Space)) +
@@ -52,27 +52,42 @@
 #'   ggplot2::scale_x_continuous(labels = scales::percent) +
 #'   ggplot2::scale_y_log10()
 robustness_analysis <- function(tensor, n = 8L, B = 1000L) {
-  tibble::tibble(Sigma = seq(2, 16, by = 2) / 100) %>%
+  weights <- runif(n)
+  weights <- weights / sum(weights)
+  data <- tibble::tibble(Sigma = seq(2, 16, by = 2) / 100) %>%
     dplyr::mutate(
-      data = purrr::map(Sigma, single_run, tensor = tensor, n = n, B = B)
+      data = purrr::map(Sigma, single_run, tensor = tensor, n = n, B = B, weights = weights)
     ) %>%
     tidyr::unnest()
+  list(data = data, weights = weights)
 }
 
-single_run <- function(tensor, rho, n, B) {
+single_run <- function(tensor, rho, n, B, weights = rep(1 / n, n)) {
   tibble::tibble(Replicate = paste0("Rep", seq_len(B))) %>%
     dplyr::mutate(
       Estimates = purrr::map(Replicate, average_estimators, tensor = tensor,
-                             rho = rho, n = n),
+                             rho = rho, n = n, weights = weights),
+      Euclidean_Estimate = purrr::map(Estimates, "Euclidean"),
       LogEuclidean_Estimate = purrr::map(Estimates, "LogEuclidean"),
       Bayes_Estimate = purrr::map(Estimates, "Bayes"),
+      Euclidean_Euclidean = purrr::map_dbl(Euclidean_Estimate, euclidean_distance, tensor),
+      Euclidean_LogEuclidean = purrr::map_dbl(Euclidean_Estimate, log_euclidean_distance, tensor),
+      Euclidean_Bayes = purrr::map_dbl(Euclidean_Estimate, bayes_distance, tensor),
+      LogEuclidean_Euclidean = purrr::map_dbl(LogEuclidean_Estimate,
+                                              euclidean_distance, tensor),
       LogEuclidean_LogEuclidean = purrr::map_dbl(LogEuclidean_Estimate,
                                                  log_euclidean_distance, tensor),
       LogEuclidean_Bayes = purrr::map_dbl(LogEuclidean_Estimate, bayes_distance,
                                           tensor),
+      Bayes_Euclidean = purrr::map_dbl(Bayes_Estimate, euclidean_distance,
+                                       tensor),
       Bayes_LogEuclidean = purrr::map_dbl(Bayes_Estimate, log_euclidean_distance,
                                           tensor),
       Bayes_Bayes = purrr::map_dbl(Bayes_Estimate, bayes_distance, tensor),
+      Euclidean_Microstructure = purrr::map(Euclidean_Estimate,
+                                            microstructure_distance, tensor),
+      Euclidean_Radius = purrr::map_dbl(Euclidean_Microstructure, "radius"),
+      Euclidean_Direction = purrr::map_dbl(Euclidean_Microstructure, "direction"),
       LogEuclidean_Microstructure = purrr::map(LogEuclidean_Estimate,
                                                microstructure_distance, tensor),
       LogEuclidean_Radius = purrr::map_dbl(LogEuclidean_Microstructure, "radius"),
@@ -82,13 +97,17 @@ single_run <- function(tensor, rho, n, B) {
       Bayes_Radius = purrr::map_dbl(Bayes_Microstructure, "radius"),
       Bayes_Direction = purrr::map_dbl(Bayes_Microstructure, "direction")
     ) %>%
-    dplyr::select(5:8, 10:11, 13:14) %>%
+    dplyr::select(6:14, 16:17, 19:20, 22:23) %>%
     dplyr::summarise_all(mean) %>%
     tidyr::gather(Tmp, MSE) %>%
     tidyr::separate(Tmp, c("Space", "Metric"))
 }
 
-average_estimators <- function(tensor, rho, n, id = "Rep1") {
+average_estimators <- function(tensor, rho, n, weights = rep(1 / n, n), id = "Rep1") {
   tensors <- rmrice(tensor, n = n, rho = rho)
-  list(LogEuclidean = log_euclidean_mean(tensors), Bayes = bayes_mean(tensors))
+  list(
+    Euclidean = euclidean_mean(tensors, weights),
+    LogEuclidean = log_euclidean_mean(tensors, weights),
+    Bayes = bayes_mean(tensors, weights)
+  )
 }

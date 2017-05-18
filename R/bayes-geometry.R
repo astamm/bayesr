@@ -44,15 +44,11 @@ bayes_multiply <- function(isigma, alpha, neutral_variance = neutral_element) {
 #' D <- list(D1 = diag(c(1.7, 0.3, 0.1)) * 1e-3,
 #'           D2 = diag(c(0.3, 1.7, 0.1)) * 1e-3)
 #' bayes_mean(D)
-bayes_mean <- function(isigmaList, neutral_variance = neutral_element) {
-  n <- length(isigmaList)
-  w <- 1 / n
-  isigma <- diag(1 / neutral_variance, 3L)
-  for (i in 1:n) {
-    tmp <- bayes_multiply(isigmaList[[i]], w, neutral_variance)
-    isigma <- bayes_add(isigma, tmp, neutral_variance)
-  }
-  isigma
+bayes_mean <- function(isigmaList, weights = rep(1 / length(isigmaList), length(isigmaList)),
+                       neutral_variance = neutral_element) {
+  isigmaList %>%
+    purrr::map2(weights, bayes_multiply) %>%
+    purrr::reduce(bayes_add, .init = diag(1 / neutral_variance, 3L))
 }
 
 #' Distance in Bayes space

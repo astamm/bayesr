@@ -129,3 +129,15 @@ microstructure_distance <- function(tensor1, tensor2) {
     direction = acos(abs(sum(dir1 * dir2)))^2
   )
 }
+
+log_tensor <- function(x) {
+  eig <- eigen(x, symmetric = TRUE)
+  val <- log(eig$values)
+  eig$vectors %*% diag(val) %*% t(eig$vectors)
+}
+
+exp_tensor <- function(x) {
+  eig <- eigen(x, symmetric = TRUE)
+  val <- exp(eig$values)
+  eig$vectors %*% diag(val) %*% t(eig$vectors)
+}
