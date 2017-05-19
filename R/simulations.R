@@ -3,6 +3,9 @@
 #' @param tensor A reference tensor.
 #' @param n Sample size (default: \code{8L}).
 #' @param B Number of independent noisy samples (default: \code{1000L}).
+#' @param lambda A scalar between 0 and 1 specifying how much trust do we have
+#'   in the reference measure, which is assigned a weight of \code{1 - lambda}
+#'   (default: 1).
 #'
 #' @return A \code{\link[tibble]{tibble}} with simulation results.
 #' @export
@@ -34,7 +37,7 @@
 #'    c(0, 0, 1)
 #'  )
 #'  ref_tmp <- R %*% refAnisotropicTensor %*% t(R)
-#'  tmp <- robustness_analysis(ref_tmp, B = 100L)
+#'  tmp <- robustness_analysis(ref_tmp, B = 100L, lambda = 0.2)
 #'  data_fascicles <- dplyr::bind_rows(
 #'    data_fascicles,
 #'    tmp$data %>% dplyr::mutate(Angle = round(a, 4L))
@@ -51,22 +54,21 @@
 #'   ggplot2::facet_grid(Metric ~ Angle, scales = "free") +
 #'   ggplot2::scale_x_continuous(labels = scales::percent) +
 #'   ggplot2::scale_y_log10()
-robustness_analysis <- function(tensor, n = 8L, B = 1000L) {
+robustness_analysis <- function(tensor, n = 8L, B = 1000L, lambda = 1) {
   weights <- runif(n)
-  weights <- weights / sum(weights)
   data <- tibble::tibble(Sigma = seq(2, 16, by = 2) / 100) %>%
     dplyr::mutate(
-      data = purrr::map(Sigma, single_run, tensor = tensor, n = n, B = B, weights = weights)
+      data = purrr::map(Sigma, single_run, tensor = tensor, n = n, B = B, weights = weights, lambda = lambda)
     ) %>%
     tidyr::unnest()
   list(data = data, weights = weights)
 }
 
-single_run <- function(tensor, rho, n, B, weights = rep(1 / n, n)) {
+single_run <- function(tensor, rho, n, B, weights = rep(1 / n, n), lambda = 1) {
   tibble::tibble(Replicate = paste0("Rep", seq_len(B))) %>%
     dplyr::mutate(
       Estimates = purrr::map(Replicate, average_estimators, tensor = tensor,
-                             rho = rho, n = n, weights = weights),
+                             rho = rho, n = n, weights = weights, lambda = lambda),
       Euclidean_Estimate = purrr::map(Estimates, "Euclidean"),
       LogEuclidean_Estimate = purrr::map(Estimates, "LogEuclidean"),
       Bayes_Estimate = purrr::map(Estimates, "Bayes"),
@@ -103,11 +105,11 @@ single_run <- function(tensor, rho, n, B, weights = rep(1 / n, n)) {
     tidyr::separate(Tmp, c("Space", "Metric"))
 }
 
-average_estimators <- function(tensor, rho, n, weights = rep(1 / n, n), id = "Rep1") {
+average_estimators <- function(tensor, rho, n, weights = rep(1 / n, n), lambda = 1, id = "Rep1") {
   tensors <- rmrice(tensor, n = n, rho = rho)
   list(
     Euclidean = euclidean_mean(tensors, weights),
     LogEuclidean = log_euclidean_mean(tensors, weights),
-    Bayes = bayes_mean(tensors, weights)
+    Bayes = bayes_mean(tensors, weights, lambda, neutral = tensor)
   )
 }

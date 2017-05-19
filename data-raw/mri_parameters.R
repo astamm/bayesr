@@ -33,7 +33,7 @@ bvecs <- rbind(
 )
 n <- dim(bvecs)[1]
 S0 <- 1
-neutral_element <- 1e5
+neutral_element <- diag(3e-3, 3L)
 bval <- 1000
 design_matrix <- -bval * cbind(
   rep(-1 / 1000, n), bvecs[, 1] * bvecs[, 1], 2 * bvecs[, 1] * bvecs[, 2],

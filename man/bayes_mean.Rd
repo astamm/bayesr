@@ -5,12 +5,20 @@
 \title{Mean element in Bayes space}
 \usage{
 bayes_mean(isigmaList, weights = rep(1/length(isigmaList),
-  length(isigmaList)), neutral_variance = neutral_element)
+  length(isigmaList)), lambda = 1, neutral = neutral_element)
 }
 \arguments{
 \item{isigmaList}{A list of \code{3x3} symmetric positive definite matrices.}
 
-\item{neutral_variance}{The neutral element of the Bayes space (default: 1e5).}
+\item{weights}{A numeric vector specifying the weight of each observation
+(default: equiprobability).}
+
+\item{lambda}{A scalar between 0 and 1 specifying how much trust do we have
+in the reference measure, which is assigned a weight of \code{1 - lambda}
+(default: 1).}
+
+\item{neutral}{The neutral element of the Bayes space (default:
+\code{diag(3e-3, 3L)}.}
 }
 \value{
 A \code{3x3} symmetric positive definite matrix.

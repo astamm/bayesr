@@ -1,4 +1,5 @@
 log_euclidean_mean <- function(sigmaList, weights = rep(1 / length(sigmaList), length(sigmaList))) {
+  weights <- weights / sum(weights)
   sigmaList %>%
     purrr::map(log_tensor) %>%
     purrr::map2(weights, `*`) %>%

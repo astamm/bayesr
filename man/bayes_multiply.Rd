@@ -4,14 +4,15 @@
 \alias{bayes_multiply}
 \title{Scalar multiplication in Bayes space}
 \usage{
-bayes_multiply(isigma, alpha, neutral_variance = neutral_element)
+bayes_multiply(isigma, alpha, neutral = neutral_element)
 }
 \arguments{
 \item{isigma}{A \code{3x3} symmetric positive definite matrix.}
 
 \item{alpha}{A scalar.}
 
-\item{neutral_variance}{The neutral element of the Bayes space (default: 1e5).}
+\item{neutral}{The neutral element of the Bayes space (default:
+\code{diag(3e-3, 3L)}).}
 }
 \value{
 A \code{3x3} symmetric positive definite matrix.

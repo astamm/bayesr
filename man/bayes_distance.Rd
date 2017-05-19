@@ -4,15 +4,15 @@
 \alias{bayes_distance}
 \title{Distance in Bayes space}
 \usage{
-bayes_distance(isigma1, isigma2, neutral_variance = neutral_element)
+bayes_distance(isigma1, isigma2, neutral = neutral_element)
 }
 \arguments{
 \item{isigma1}{A \code{3x3} symmetric positive definite matrix.}
 
 \item{isigma2}{A \code{3x3} symmetric positive definite matrix.}
 
-\item{neutral_variance}{The neutral element of the Bayes space (default:
-1e5).}
+\item{neutral}{The neutral element of the Bayes space (default:
+\code{diag(3e-3, 3L)}).}
 }
 \value{
 A positive scalar measuring the distance between the two input
