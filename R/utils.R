@@ -96,13 +96,31 @@ rmrice <- function(tensor, n = 1L, rho = 0.1) {
   signals %>% purrr::map(rrice, n = n, sigma = rho * S0) %>%
     purrr::transpose() %>%
     purrr::simplify_all() %>%
-    purrr::map(estimate_tensor)
+    purrr::map(estimate_tensor, tensor_init = tensor)
 }
 
-estimate_tensor <- function(signals) {
+estimate_tensor <- function(signals, tensor_init = NULL) {
+
+  if (!is.null(tensor_init)) {
+    opt <- nloptr::newuoa(
+      x0 = as_vector(log_tensor(tensor_init)),
+      fn = cost_te,
+      observed_signals = signals,
+      nl.info = TRUE,
+      control = list(xtol_rel = 1e-8, maxeval = 1e5)
+    )
+    return(exp_tensor(as_tensor(opt$par)))
+  }
+
   tensor <- (estimation_matrix %*% log(signals))[2:7]
   tensor <- as_tensor(tensor)
   as.matrix(Matrix::nearPD(tensor)$mat)
+}
+
+cost_te <- function(x, observed_signals) {
+  tensor <- exp_tensor(as_tensor(x))
+  predicted_signals <- S0 * exp(-bval * diag(bvecs %*% tensor %*% t(bvecs)))
+  sum((observed_signals - predicted_signals)^2)
 }
 
 #' Distances on brain microstructure
@@ -120,11 +138,14 @@ estimate_tensor <- function(signals) {
 microstructure_distance <- function(tensor1, tensor2) {
   eig1 <- eigen(tensor1, symmetric = TRUE)
   eig2 <- eigen(tensor2, symmetric = TRUE)
+  l1 <- eig1$values[1]
+  l2 <- eig2$values[1]
   r1 <- mean(eig1$values[2:3])
   r2 <- mean(eig2$values[2:3])
   dir1 <- eig1$vectors[, 1]
   dir2 <- eig2$vectors[, 1]
   list(
+    diffusivity = (log(l1) - log(l2))^2,
     radius = (log(r1) - log(r2))^2,
     direction = acos(abs(sum(dir1 * dir2)))^2
   )
@@ -140,4 +161,23 @@ exp_tensor <- function(x) {
   eig <- eigen(x, symmetric = TRUE)
   val <- exp(eig$values)
   eig$vectors %*% diag(val) %*% t(eig$vectors)
+}
+
+uniform_weights <- function(tensor_list) {
+  len <- length(tensor_list)
+  rep(1 / len, len)
+}
+
+#' Determinant of a symmetric matrix
+#'
+#' @param x A symmetric matrix.
+#'
+#' @return The determinant of the input symmetric matrix.
+#' @export
+#'
+#' @examples
+#' M <- matrix(rnorm(9), 3, 3)
+#' det_matrix(M)
+det_matrix <- function(x) {
+  prod(eigen(x, TRUE, TRUE)$values)
 }

@@ -1,86 +1,148 @@
 #' Addition in Bayes space
 #'
-#' @param isigma1 A \code{3x3} symmetric positive definite matrix.
-#' @param isigma2 A \code{3x3} symmetric positive definite matrix.
-#' @param neutral The neutral element of the Bayes space (default:
-#'   \code{diag(3e-3, 3L)}).
+#' @param tensor1 A \code{3x3} symmetric matrix.
+#' @param tensor2 A \code{3x3} symmetric matrix.
+#' @param tensor_ref The SDP tensor associated to the reference measure of the
+#'   Bayes space.
+#' @param do_projection A boolean specifying whether the result of the operation
+#'   should be projected onto the space of diffusion signals (default not to).
 #'
-#' @return A \code{3x3} symmetric positive definite matrix.
+#' @return A \code{3x3} symmetric matrix.
 #' @export
 #'
 #' @examples
 #' D1 <- diag(c(1.7, 0.3, 0.1)) * 1e-3
 #' D2 <- diag(c(0.3, 1.7, 0.1)) * 1e-3
-#' bayes_add(D1, D2)
-bayes_add <- function(isigma1, isigma2, neutral = neutral_element) {
-  isigma1 + isigma2 - neutral
+#' Dr <- diag(c(1.7, 0.3, 0.1)) * 1e-3
+#' add_bayes(D1, D2, Dr)
+add_bayes <- function(tensor1, tensor2, tensor_ref, do_projection = FALSE) {
+  res <- tensor1 + tensor2 - tensor_ref
+
+  if (do_projection & det_matrix(res) < 0)
+    return(project(res, tensor_ref))
+
+  res
 }
 
 #' Scalar multiplication in Bayes space
 #'
-#' @param isigma A \code{3x3} symmetric positive definite matrix.
+#' @param tensor A \code{3x3} symmetric matrix.
 #' @param alpha A scalar.
-#' @param neutral The neutral element of the Bayes space (default:
-#'   \code{diag(3e-3, 3L)}).
+#' @param tensor_ref The SDP tensor associated to the reference measure of the
+#'   Bayes space.
+#' @param do_projection A boolean specifying whether the result of the operation
+#'   should be projected onto the space of diffusion signals (default not to).
 #'
-#' @return A \code{3x3} symmetric positive definite matrix.
+#' @return A \code{3x3} symmetric matrix.
 #' @export
 #'
 #' @examples
 #' D <- diag(c(1.7, 0.3, 0.1)) * 1e-3
-#' bayes_multiply(D, 2)
-#' bayes_add(D, D)
-bayes_multiply <- function(isigma, alpha, neutral = neutral_element) {
-  alpha * isigma - (alpha - 1) * neutral
+#' multiply_bayes(D, 2)
+multiply_bayes <- function(tensor, alpha, tensor_ref, do_projection = FALSE) {
+  res <- alpha * tensor + (1 - alpha) * tensor_ref
+
+  if (do_projection & det_matrix(res) < 0)
+    return(project(res, tensor_ref))
+
+  res
 }
 
 #' Mean element in Bayes space
 #'
-#' @param isigmaList A list of \code{3x3} symmetric positive definite matrices.
+#' @param tensor_list A list of \code{3x3} symmetric matrices.
 #' @param weights A numeric vector specifying the weight of each observation
 #'   (default: equiprobability).
-#' @param lambda A scalar between 0 and 1 specifying how much trust do we have
-#'   in the reference measure, which is assigned a weight of \code{1 - lambda}
-#'   (default: 1).
-#' @param neutral The neutral element of the Bayes space (default:
-#'   \code{diag(3e-3, 3L)}.
+#' @param shrinkage A scalar between 0 and 1 specifying how much do we want to
+#'   shrink the arithmetic mean towards the reference tensor (default: 0).
+#' @param tensor_ref The SDP tensor associated to the reference measure of the
+#'   Bayes space.
+#' @param do_projection A boolean specifying whether the result of the operation
+#'   should be projected onto the space of diffusion signals (default not to).
 #'
-#' @return A \code{3x3} symmetric positive definite matrix.
+#' @return A \code{3x3} symmetric matrix.
 #' @export
 #'
 #' @examples
 #' D <- list(D1 = diag(c(1.7, 0.3, 0.1)) * 1e-3,
 #'           D2 = diag(c(0.3, 1.7, 0.1)) * 1e-3)
-#' bayes_mean(D)
-bayes_mean <- function(isigmaList,
-                       weights = rep(1 / length(isigmaList), length(isigmaList)),
-                       lambda = 1,
-                       neutral = neutral_element) {
-  weights <- weights / sum(weights)
-  isigmaList %>%
-    purrr::map2(weights * lambda, bayes_multiply, neutral = neutral) %>%
-    purrr::reduce(bayes_add, neutral = neutral, .init = neutral)
+#' mean_bayes(D)
+mean_bayes <- function(tensor_list,
+                       weights = uniform_weights(tensor_list),
+                       shrinkage = 0,
+                       tensor_ref,
+                       do_projection = FALSE) {
+  weights <- weights / sum(weights) * (1 - shrinkage)
+  res <- tensor_list %>%
+    purrr::map2(weights, multiply_bayes, tensor_ref = tensor_ref, do_projection = do_projection) %>%
+    purrr::reduce(add_bayes, tensor_ref = tensor_ref, do_projection = do_projection, .init = tensor_ref)
+
+  if (do_projection & det_matrix(res) < 0)
+    return(project(res, tensor_ref))
+
+  res
 }
 
 #' Distance in Bayes space
 #'
-#' @param isigma1 A \code{3x3} symmetric positive definite matrix.
-#' @param isigma2 A \code{3x3} symmetric positive definite matrix.
-#' @param neutral The neutral element of the Bayes space (default:
-#'   \code{diag(3e-3, 3L)}).
+#' @param tensor1 A \code{3x3} symmetric matrix.
+#' @param tensor2 A \code{3x3} symmetric matrix.
+#' @param iR The inverse of the SDP tensor associated to the reference measure
+#'   of the Bayes space.
 #'
-#' @return A positive scalar measuring the distance between the two input
-#'   Gaussians in Bayes geometry.
+#' @return A positive scalar.
 #' @export
 #'
 #' @examples
 #' D1 <- diag(c(1.7, 0.3, 0.1)) * 1e-3
 #' D2 <- diag(c(0.3, 1.7, 0.1)) * 1e-3
-#' bayes_distance(D1, D2)
-bayes_distance <- function(isigma1, isigma2, neutral = neutral_element) {
-  # Needs recalculation to accomodate a non-identity neutral element
-  isigma1 <- isigma1 * neutral
-  isigma2 <- isigma2 * neutral
-  diff <- isigma1 - isigma2
-  sum(diff^2) / 2
+#' dist_bayes(D1, D2)
+dist_bayes <- function(tensor1, tensor2, iR) {
+  M <- (tensor1 - tensor2) %*% iR
+  vals <- eigen(M, symmetric = TRUE, only.values = TRUE)$values
+  sum(vals^2) * sqrt(pi^3 * det_matrix(iR))
+}
+
+cost <- function(x, S, iR, distance = "bayes") {
+  DT <- as_tensor(x)
+  DT <- exp_tensor(DT)
+  if (distance != "bayes")
+    return(euclidean_distance(S, DT))
+  bayes_dist(S, DT, iR)
+}
+
+#' Orthogonal projection onto diffusion signal space
+#'
+#' @param x A symmetric 3x3 matrix resulting from a series of operations in
+#'   Bayes space.
+#' @param reference_tensor The SDP tensor defining the reference measure of the
+#'   Bayes space.
+#' @param distance A string indicating whether the projection should be done in
+#'   Bayes geometry (default) or in Euclidean geometry.
+#'
+#' @return An SDP tensor.
+#' @export
+#'
+#' @examples
+#' R <- diag(c(1.7, 0.3, 0.1), 3)
+#' Rn <- matrix(mvtnorm::rmvnorm(1, c(R)), 3, 3)
+#' det_matrix(Rn)
+#' Rfro <- project(Rn, R, distance = "frobenius")
+#' Rbay <- project(Rn, R, distance = "bayes")
+#' eigen(Rn, TRUE, TRUE)$values
+#' eigen(Rfro, TRUE, TRUE)$values
+#' eigen(Rbay, TRUE, TRUE)$values
+project <- function(x, reference_tensor, distance = "bayes") {
+  logR <- log_tensor(reference_tensor)
+  invR <- solve(reference_tensor)
+  opt <- nloptr::newuoa(
+    x0 = logR[upper.tri(logR, diag = TRUE)],
+    fn = cost,
+    S = x, iR = invR, distance = distance,
+    nl.info = TRUE,
+    control = list(xtol_rel = 1e-8, maxeval = 1e5)
+  )
+  op <- opt$par
+  logT <- as_tensor(op)
+  exp_tensor(logT)
 }

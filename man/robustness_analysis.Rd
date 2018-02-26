@@ -4,7 +4,8 @@
 \alias{robustness_analysis}
 \title{Robustness of log-Euclidean and Bayes geometries to MRI-induced noise}
 \usage{
-robustness_analysis(tensor, n = 8L, B = 1000L, lambda = 1)
+robustness_analysis(tensor, n = 8L, B = 1000L, N = 20L, beta = 20,
+  seed = NULL)
 }
 \arguments{
 \item{tensor}{A reference tensor.}
@@ -13,9 +14,13 @@ robustness_analysis(tensor, n = 8L, B = 1000L, lambda = 1)
 
 \item{B}{Number of independent noisy samples (default: \code{1000L}).}
 
-\item{lambda}{A scalar between 0 and 1 specifying how much trust do we have
-in the reference measure, which is assigned a weight of \code{1 - lambda}
-(default: 1).}
+\item{N}{Number of healthy subjects used to build hypothetical template
+(default: \code{20L}).}
+
+\item{beta}{Scaling parameter for defining SNR weight for reference measure
+(default: \code{20}).}
+
+\item{seed}{Seed for random number generation (default: clock time).}
 }
 \value{
 A \code{\link[tibble]{tibble}} with simulation results.
@@ -27,7 +32,7 @@ Robustness of log-Euclidean and Bayes geometries to MRI-induced noise
 arrow <- ggplot2::arrow(length = ggplot2::unit(0.4, "cm"), type = "closed")
 
 refIsotropicTensor <- diag(3e-3, 3L)
-data_isotropic <- robustness_analysis(refIsotropicTensor, B = 100L)
+data_isotropic <- robustness_analysis(refIsotropicTensor, B = 100L, seed = 1234)
 
 data_isotropic$data \%>\%
  ggplot2::ggplot(ggplot2::aes(x = Sigma, y = MSE, col = Space)) +
@@ -50,7 +55,7 @@ for (a in theta) {
    c(0, 0, 1)
  )
  ref_tmp <- R \%*\% refAnisotropicTensor \%*\% t(R)
- tmp <- robustness_analysis(ref_tmp, B = 100L, lambda = 0.2)
+ tmp <- robustness_analysis(ref_tmp, B = 100L, seed = 1234)
  data_fascicles <- dplyr::bind_rows(
    data_fascicles,
    tmp$data \%>\% dplyr::mutate(Angle = round(a, 4L))
