@@ -4,8 +4,7 @@
 \alias{robustness_analysis}
 \title{Robustness of log-Euclidean and Bayes geometries to MRI-induced noise}
 \usage{
-robustness_analysis(tensor, n = 8L, B = 1000L, N = 20L, beta = 20,
-  seed = NULL)
+robustness_analysis(tensor, n = 8L, B = 1000L, N = 20L, seed = NULL)
 }
 \arguments{
 \item{tensor}{A reference tensor.}
@@ -16,9 +15,6 @@ robustness_analysis(tensor, n = 8L, B = 1000L, N = 20L, beta = 20,
 
 \item{N}{Number of healthy subjects used to build hypothetical template
 (default: \code{20L}).}
-
-\item{beta}{Scaling parameter for defining SNR weight for reference measure
-(default: \code{20}).}
 
 \item{seed}{Seed for random number generation (default: clock time).}
 }

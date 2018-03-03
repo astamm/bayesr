@@ -18,7 +18,7 @@
 add_bayes <- function(tensor1, tensor2, tensor_ref, do_projection = FALSE) {
   res <- tensor1 + tensor2 - tensor_ref
 
-  if (do_projection & det_matrix(res) < 0)
+  if (do_projection & !is_pd(res))
     return(project(res, tensor_ref))
 
   res
@@ -42,7 +42,7 @@ add_bayes <- function(tensor1, tensor2, tensor_ref, do_projection = FALSE) {
 multiply_bayes <- function(tensor, alpha, tensor_ref, do_projection = FALSE) {
   res <- alpha * tensor + (1 - alpha) * tensor_ref
 
-  if (do_projection & det_matrix(res) < 0)
+  if (do_projection & !is_pd(res))
     return(project(res, tensor_ref))
 
   res
@@ -77,7 +77,7 @@ mean_bayes <- function(tensor_list,
     purrr::map2(weights, multiply_bayes, tensor_ref = tensor_ref, do_projection = do_projection) %>%
     purrr::reduce(add_bayes, tensor_ref = tensor_ref, do_projection = do_projection, .init = tensor_ref)
 
-  if (do_projection & det_matrix(res) < 0)
+  if (do_projection & !is_pd(res))
     return(project(res, tensor_ref))
 
   res
@@ -99,16 +99,17 @@ mean_bayes <- function(tensor_list,
 #' dist_bayes(D1, D2)
 dist_bayes <- function(tensor1, tensor2, iR) {
   M <- (tensor1 - tensor2) %*% iR
-  vals <- eigen(M, symmetric = TRUE, only.values = TRUE)$values
-  sum(vals^2) * sqrt(pi^3 * det_matrix(iR))
+  vals <- eigen(M, only.values = TRUE)$values
+  # sum(vals^2) #* sqrt(pi^3 * det_matrix(iR))
+  sum(M * t(M)) * sqrt(pi^3 * det_matrix(iR))
 }
 
 cost <- function(x, S, iR, distance = "bayes") {
-  DT <- as_tensor(x)
+  DT <- vec2mat(x)
   DT <- exp_tensor(DT)
   if (distance != "bayes")
-    return(euclidean_distance(S, DT))
-  bayes_dist(S, DT, iR)
+    return(dist_euclidean(S, DT) + dist_euclidean(solve(iR), DT))
+  dist_bayes(S, DT, iR) + dist_bayes(solve(iR), DT, iR)
 }
 
 #' Orthogonal projection onto diffusion signal space
@@ -136,13 +137,15 @@ project <- function(x, reference_tensor, distance = "bayes") {
   logR <- log_tensor(reference_tensor)
   invR <- solve(reference_tensor)
   opt <- nloptr::newuoa(
-    x0 = logR[upper.tri(logR, diag = TRUE)],
+    x0 = mat2vec(logR),
     fn = cost,
     S = x, iR = invR, distance = distance,
     nl.info = TRUE,
     control = list(xtol_rel = 1e-8, maxeval = 1e5)
   )
+  if (opt$value < 0)
+    print(paste(distance, opt$value))
   op <- opt$par
-  logT <- as_tensor(op)
+  logT <- vec2mat(op)
   exp_tensor(logT)
 }

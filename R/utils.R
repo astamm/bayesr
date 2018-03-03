@@ -21,8 +21,8 @@ rrice <- function (n, mu, sigma)
 #'
 #' @examples
 #' D <- cbind(c(1, 2, 4), c(2, 3, 5), c(4, 5, 6))
-#' as_vector(D)
-as_vector <- function(tensor, twice = FALSE) {
+#' mat2vec(D)
+mat2vec <- function(tensor, twice = FALSE) {
   stopifnot(is.matrix(tensor))
   if (!is.matrix(tensor))
     stop("Input should be a matrix")
@@ -52,8 +52,8 @@ as_vector <- function(tensor, twice = FALSE) {
 #'
 #' @examples
 #' v <- seq_len(6L)
-#' as_tensor(v)
-as_tensor <- function(vector, twice = FALSE) {
+#' vec2mat(v)
+vec2mat <- function(vector, twice = FALSE) {
   if (!is.numeric(vector))
     stop("Input should be a numeric vector")
   else {
@@ -99,28 +99,74 @@ rmrice <- function(tensor, n = 1L, rho = 0.1) {
     purrr::map(estimate_tensor, tensor_init = tensor)
 }
 
-estimate_tensor <- function(signals, tensor_init = NULL) {
-
-  if (!is.null(tensor_init)) {
-    opt <- nloptr::newuoa(
-      x0 = as_vector(log_tensor(tensor_init)),
-      fn = cost_te,
-      observed_signals = signals,
-      nl.info = TRUE,
-      control = list(xtol_rel = 1e-8, maxeval = 1e5)
-    )
-    return(exp_tensor(as_tensor(opt$par)))
-  }
-
-  tensor <- (estimation_matrix %*% log(signals))[2:7]
-  tensor <- as_tensor(tensor)
-  as.matrix(Matrix::nearPD(tensor)$mat)
+is_pd <- function(tensor) {
+  eigen(tensor, TRUE, TRUE)$values[3] > sqrt(.Machine$double.eps)
 }
 
-cost_te <- function(x, observed_signals) {
-  tensor <- exp_tensor(as_tensor(x))
+estimate_tensor <- function(signals, tensor_init, input_type = "original", wls = FALSE, sigma = NULL) {
+  if (input_type == "original") {
+    # Estimation based on original signals
+    if (is.null(sigma)) { # Gaussian Likelihood Maximization
+      opt <- nloptr::newuoa(
+        x0 = c(log(S0), mat2vec(log_tensor(tensor_init))),
+        fn = likelihood_gaussian,
+        observed_signals = signals,
+        nl.info = TRUE,
+        control = list(xtol_rel = 1e-8, maxeval = 1e5)
+      )
+      return(exp_tensor(vec2mat(opt$par[-1])))
+    } else { # Rician Likelihood Maximization
+      opt <- nloptr::newuoa(
+        x0 = c(log(S0), log(sigma^2), mat2vec(log_tensor(tensor_init))),
+        fn = likelihood_rician,
+        observed_signals = signals,
+        nl.info = TRUE,
+        control = list(xtol_rel = 1e-8, maxeval = 1e5)
+      )
+      return(exp_tensor(vec2mat(opt$par[-(1:2)])))
+    }
+  }
+
+  # Estimation based on log-signals
+  log_signals <- log(signals)
+
+  if (wls) { # Weighted Least Squares
+    logS0 <- 0
+    logTmp <- 1
+    while (abs(logS0 - logTmp) > 1e-3) {
+      logS0 <- logTmp
+      weights <- exp(as.numeric(design_matrix %*% estimation_matrix %*% log_signals))
+      W2 <- diag(weights^2)
+      iM <- solve(t(design_matrix) %*% W2 %*% design_matrix)
+      tensor <- iM %*% t(design_matrix) %*% W2 %*% log_signals
+      logTmp <- tensor[1]
+      log_signals <- as.numeric(design_matrix %*% tensor)
+    }
+  } else # Original Least Squares
+    tensor <- estimation_matrix %*% log_signals
+
+  vec2mat(tensor[-1])
+}
+
+likelihood_gaussian <- function(x, observed_signals) {
+  # Parameters are log(S0) [1] and log(D) [2:7]
+  S0 <- exp(x[1])
+  tensor <- exp_tensor(vec2mat(x[-1]))
   predicted_signals <- S0 * exp(-bval * diag(bvecs %*% tensor %*% t(bvecs)))
   sum((observed_signals - predicted_signals)^2)
+}
+
+likelihood_rician <- function(x, observed_signals) {
+  # Parameters are log(S0) [1], log(\sigma^2) [2] and log(D) [3:8]
+  S0 <- exp(x[1])
+  sigma2 <- exp(x[2])
+  tensor <- exp_tensor(vec2mat(x[-(1:2)]))
+  predicted_signals <- S0 * exp(-bval * diag(bvecs %*% tensor %*% t(bvecs)))
+  -2 * sum(
+    log(observed_signals) - log(sigma2) -
+      (observed_signals - predicted_signals)^2 / (2 * sigma2) +
+      log(besselI(observed_signals * predicted_signals / sigma2, nu = 0, expon.scaled = TRUE))
+  )
 }
 
 #' Distances on brain microstructure
@@ -145,8 +191,8 @@ microstructure_distance <- function(tensor1, tensor2) {
   dir1 <- eig1$vectors[, 1]
   dir2 <- eig2$vectors[, 1]
   list(
-    diffusivity = (log(l1) - log(l2))^2,
-    radius = (log(r1) - log(r2))^2,
+    diffusivity = (l1 - l2)^2,
+    radius = (r1 - r2)^2,
     direction = acos(abs(sum(dir1 * dir2)))^2
   )
 }
